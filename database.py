@@ -39,8 +39,7 @@ def init_db() -> None:
             user_id TEXT PRIMARY KEY,
             username TEXT NOT NULL,
             registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active INTEGER DEFAULT 1,
-            timezone TEXT DEFAULT 'UTC'
+            is_active INTEGER DEFAULT 1
         )
     """)
     
@@ -92,8 +91,7 @@ def init_db() -> None:
             except Exception as e:
                 logger.warning(f"Warning: Could not add {column} to {table}: {e}")
 
-    # Migrations for registered_users
-    add_column("registered_users", "timezone", "TEXT DEFAULT 'UTC'")
+    # Migrations for registered_users - No longer needed
 
     # Migrations for responses
     add_column("responses", "standup_date", "DATE")
@@ -202,39 +200,7 @@ def get_registered_users() -> List[Dict[str, Any]]:
     ]
 
 
-def set_user_timezone(user_id: str, timezone: str) -> bool:
-    """Set the timezone for a specific user."""
-    conn = get_connection()
-    
-    # Verify timezone is valid
-    try:
-        pytz.timezone(timezone)
-    except pytz.UnknownTimeZoneError:
-        return False
-        
-    conn.execute(
-        "UPDATE registered_users SET timezone = ? WHERE user_id = ?",
-        (timezone, user_id)
-    )
-    conn.commit()
-    return True
-
-
-def get_user_timezone(user_id: str) -> str:
-    """Get the timezone for a specific user, falling back to global setting."""
-    conn = get_connection()
-    
-    cursor = conn.execute(
-        "SELECT timezone FROM registered_users WHERE user_id = ?",
-        (user_id,)
-    )
-    row = cursor.fetchone()
-    
-    if row and row[0]:
-        return row[0]
-    
-    # Fallback to global setting
-    return get_settings()["timezone"]
+# User-specific timezone functions removed in favor of global settings
 
 
 def is_user_registered(user_id: str) -> bool:
@@ -262,13 +228,15 @@ def get_registered_user_count() -> int:
 # Standup Date Logic
 # ============================================
 
-def get_standup_date(timezone_str: str = "UTC") -> str:
+def get_standup_date(timezone_str: Optional[str] = None) -> str:
     """
     Calculate the logical standup date.
     If collection window spans midnight (e.g., 22:00-02:00),
     responses after midnight still count for "yesterday's" standup date.
     """
     settings = get_settings()
+    if timezone_str is None:
+        timezone_str = settings["timezone"]
     tz = pytz.timezone(timezone_str)
     now = datetime.now(tz)
     
