@@ -240,7 +240,8 @@ class AdminCog(commands.Cog):
         if stats["blocked_users"]:
             status_lines.append("**⚠️ Blocked Users:**")
             for user in stats["blocked_users"][:5]:  # Limit to 5
-                status_lines.append(f"• {user['username']}: {user['blockers'][:50]}...")
+                category = user.get("blocker_category") or "Other"
+                status_lines.append(f"• {user['username']} [{category}]: {user['blockers'][:50]}...")
         
         if stats["non_responders"]:
             status_lines.append(f"\n**❌ Missing Responses ({missing}):**")
@@ -336,6 +337,7 @@ class AdminCog(commands.Cog):
         for i, r in enumerate(responses, 1):
             yesterday = (r["question_yesterday"] or "N/A")[:60]
             today = (r["question_today"] or "N/A")[:60]
+            category = r.get("blocker_category") or "None"
             blockers = r["blockers"] or "None"
             blockers = blockers[:40] if len(blockers) > 40 else blockers
             mood = f" | Mood: {r['confidence_mood']}/5" if r['confidence_mood'] else ""
@@ -346,7 +348,7 @@ class AdminCog(commands.Cog):
                 f"**{i}. {r['username']}**{late}{edited}{mood}\n"
                 f"> Yesterday: {yesterday}{'...' if len(r['question_yesterday'] or '') > 60 else ''}\n"
                 f"> Today: {today}{'...' if len(r['question_today'] or '') > 60 else ''}\n"
-                f"> Blockers: {blockers}\n"
+                f"> Blocker [{category}]: {blockers}\n"
             )
         
         # Split if too long
@@ -436,15 +438,12 @@ class AdminCog(commands.Cog):
         collection_cog = self.bot.get_cog("CollectionCog")
         
         if not collection_cog:
-            await interaction.response.send_message("❌ Collection system not available", ephemeral=True)
+            await interaction.response.edit_message(content="❌ Collection system not available")
             return
         
         non_responders = database.get_non_responders()
         if not non_responders:
-            await interaction.response.send_message(
-                "✅ All registered users have responded!",
-                ephemeral=True
-            )
+            await interaction.response.edit_message(content="✅ All registered users have responded!")
             return
         
         await interaction.response.send_message(
@@ -455,6 +454,35 @@ class AdminCog(commands.Cog):
         count = await collection_cog.send_reminders(interaction.guild)
         
         await interaction.followup.send(f"✅ Sent reminders to **{count}** members")
+
+    @app_commands.command(name="delete_response", description="[Admin] Delete a member's standup response")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(
+        member="The member whose response to delete",
+        date="Date in YYYY-MM-DD format (default: today)"
+    )
+    async def delete_response(self, interaction: discord.Interaction, member: discord.Member, date: Optional[str] = None):
+        """Administratively delete a response."""
+        settings = database.get_settings()
+        target_date = date if date else database.get_standup_date(settings["timezone"])
+        
+        # Confirmation check
+        success = database.delete_user_response(str(member.id), target_date)
+        
+        if success:
+            await interaction.response.send_message(
+                f"🗑️ **Deleted response** for {member.mention} on `{target_date}`.\n"
+                "They can now resubmit their standup.",
+                ephemeral=True
+            )
+            
+            # Optional: Log to admin
+            logger.info(f"Admin {interaction.user.name} deleted response for {member.name} on {target_date}")
+        else:
+            await interaction.response.send_message(
+                f"❌ Failed to delete response for {member.mention} on {target_date}.",
+                ephemeral=True
+            )
     
     @app_commands.command(name="standup_help", description="Show available standup bot commands")
     async def standup_help(self, interaction: discord.Interaction):
@@ -475,6 +503,7 @@ class AdminCog(commands.Cog):
             "`/missing [date]` - List non-responders\n"
             "`/responses [date]` - View all responses\n"
             "`/summary [date]` - Generate AI summary\n"
+            "`/delete_response` - Delete a response\n"
             "`/collect_now` - Trigger collection\n"
             "`/remind_now` - Send reminders\n"
             "`/set_time` - Set collection times\n"

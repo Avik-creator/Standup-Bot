@@ -448,6 +448,30 @@ def has_responded_today(user_id: str) -> bool:
     return cursor.fetchone()[0] > 0
 
 
+def delete_user_response(user_id: str, standup_date: str) -> bool:
+    """Delete a user's response and partial response for a specific date."""
+    conn = get_connection()
+    try:
+        # Delete from final responses
+        conn.execute(
+            "DELETE FROM responses WHERE user_id = ? AND standup_date = ?",
+            (user_id, standup_date)
+        )
+        
+        # Delete from partial responses
+        conn.execute(
+            "DELETE FROM partial_responses WHERE user_id = ? AND standup_date = ?",
+            (user_id, standup_date)
+        )
+        
+        conn.commit()
+        logger.info(f"Deleted response and partial response for user {user_id} on {standup_date}")
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting response: {e}")
+        return False
+
+
 def get_non_responders(standup_date: Optional[str] = None) -> List[Dict[str, Any]]:
     """Get registered users who haven't responded for a date."""
     if standup_date is None:
