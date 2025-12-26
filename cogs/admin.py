@@ -26,8 +26,11 @@ TIMEZONE_OPTIONS = [
     ("Australia/Sydney", "Australia/Sydney"),
 ]
 
-# Time options for dropdowns
-HOUR_OPTIONS = [(f"{h:02d}:00", f"{h:02d}:00") for h in range(0, 24)]
+# Time options for dropdowns (30-minute intervals)
+HOUR_OPTIONS = []
+for h in range(0, 24):
+    HOUR_OPTIONS.append((f"{h:02d}:00", f"{h:02d}:00"))
+    HOUR_OPTIONS.append((f"{h:02d}:30", f"{h:02d}:30"))
 
 
 class TimezoneSelect(ui.Select):
