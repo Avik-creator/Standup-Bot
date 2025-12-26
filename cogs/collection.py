@@ -15,18 +15,20 @@ QUESTIONS = [
     ("question_yesterday", "📋 **What did you work on yesterday?**\n(Describe completed tasks)"),
     ("question_today", "🎯 **What are you working on today?**\n(Describe your plans)"),
     ("question_technical", "🛠️ **Any technical updates?**\n(Specific architectural or code changes)"),
-    ("blockers", None),  # Special handling with dropdown
-    ("confidence_mood", None),  # Special handling with buttons
+    ("blocker_category", None),  # Step 3: Select category
+    ("blockers", None),          # Step 4: Type details
+    ("confidence_mood", None),   # Step 5: Mood
 ]
 
 
-# Predefined blocker options
-BLOCKER_OPTIONS = [
-    ("No blockers", None),
-    ("Waiting on someone", "Waiting on team member/external dependency"),
-    ("Technical issue", "Facing technical difficulties"),
-    ("Need clarification", "Need clarification on requirements"),
-    ("Resource constraint", "Lacking resources or access"),
+# Predefined blocker categories
+BLOCKER_CATEGORIES = [
+    ("No blockers", "None"),
+    ("Technical issue", "Technical"),
+    ("Process/Workstream", "Process"),
+    ("Waiting on someone", "Dependency"),
+    ("Scheduling/Time", "Scheduling"),
+    ("Other", "Other"),
 ]
 
 
@@ -46,6 +48,7 @@ class MoodButton(ui.Button):
             question_yesterday=self.session["responses"]["question_yesterday"],
             question_today=self.session["responses"]["question_today"],
             question_technical=self.session["responses"].get("question_technical"),
+            blocker_category=self.session["responses"].get("blocker_category"),
             blockers=self.session["responses"].get("blockers"),
             confidence_mood=self.value,
             is_late=self.session.get("is_late", False)
@@ -59,7 +62,8 @@ class MoodButton(ui.Button):
             "📊 **Your Summary:**",
             f"**Yesterday:** {self.session['responses']['question_yesterday'][:100]}...",
             f"**Today:** {self.session['responses']['question_today'][:100]}...",
-            f"**Blockers:** {self.session['responses'].get('blockers') or 'None'}",
+            f"**Technical:** {self.session['responses'].get('question_technical', 'None')[:50]}...",
+            f"**Blocker:** [{self.session['responses'].get('blocker_category') or 'None'}] {self.session['responses'].get('blockers') or 'N/A'}",
             f"**Mood:** {mood_emojis.get(self.value, '?')} ({self.value}/5)",
             "\nHave a productive day! 🚀"
         ]
@@ -92,6 +96,7 @@ class MoodView(ui.View):
             question_yesterday=self.session["responses"]["question_yesterday"],
             question_today=self.session["responses"]["question_today"],
             question_technical=self.session["responses"].get("question_technical"),
+            blocker_category=self.session["responses"].get("blocker_category"),
             blockers=self.session["responses"].get("blockers"),
             confidence_mood=None,
             is_late=self.session.get("is_late", False)
@@ -122,19 +127,14 @@ class BlockerSelect(ui.Select):
         options = [
             discord.SelectOption(
                 label=label, 
-                value=value if value else "__NONE__",
-                description=value[:50] if value else "No blockers"
+                value=value,
+                description=f"Category: {value}" if value != "None" else "No blockers"
             )
-            for label, value in BLOCKER_OPTIONS
+            for label, value in BLOCKER_CATEGORIES
         ]
-        options.append(discord.SelectOption(
-            label="Other (type below)", 
-            value="__OTHER__", 
-            description="Type your own blocker"
-        ))
         
         super().__init__(
-            placeholder="Select a blocker or 'Other' to type...",
+            placeholder="Select a blocker category...",
             options=options,
             min_values=1,
             max_values=1
@@ -142,20 +142,31 @@ class BlockerSelect(ui.Select):
     
     async def callback(self, interaction: discord.Interaction):
         selected = self.values[0]
+        self.session["responses"]["blocker_category"] = selected
         
-        if selected == "__OTHER__":
+        if selected == "None":
+            self.session["responses"]["blockers"] = "None"
+            self.session["step"] = 5  # Skip step 4 (details)
+            
+            # Save partial
+            database.save_partial_response(
+                user_id=self.session["user_id"],
+                username=self.session["username"],
+                step=5,
+                blocker_category="None",
+                blockers="None"
+            )
+            
+            # Show mood selection
             await interaction.response.edit_message(
                 content=(
-                    f"📊 Progress: 3/5 questions answered\n\n"
-                    "🚧 **Any blockers?**\n\n"
-                    "Please type your blocker below:"
+                    f"📊 Progress: 5/6 questions answered\n\n"
+                    "🎭 **How are you feeling today?** (Optional)\n\n"
+                    "Rate your confidence/mood (1-5):"
                 ),
-                view=None
+                view=MoodView(self.session)
             )
-            self.session["awaiting_custom_blocker"] = True
         else:
-            blocker = None if selected == "__NONE__" else selected
-            self.session["responses"]["blockers"] = blocker
             self.session["step"] = 4
             
             # Save partial
@@ -163,17 +174,16 @@ class BlockerSelect(ui.Select):
                 user_id=self.session["user_id"],
                 username=self.session["username"],
                 step=4,
-                blockers=blocker
+                blocker_category=selected
             )
             
-            # Show mood selection
             await interaction.response.edit_message(
                 content=(
-                    f"📊 Progress: 4/5 questions answered\n\n"
-                    "🎭 **How are you feeling today?** (Optional)\n\n"
-                    "Rate your confidence/mood (1-5):"
+                    f"📊 Progress: 4/6 questions answered\n\n"
+                    f"🚧 **You selected '{selected}' blocker.**\n"
+                    "Please type the specific details of your blocker below:"
                 ),
-                view=MoodView(self.session)
+                view=None
             )
 
 
@@ -198,10 +208,11 @@ class NoUpdateView(ui.View):
         database.save_response(
             user_id=str(interaction.user.id),
             username=interaction.user.name,
-            question_yesterday="No update",
-            question_today="No update",
+            question_yesterday=self.session["responses"].get("question_yesterday") or "No update",
+            question_today=self.session["responses"].get("question_today") or "No update",
             question_technical="None",
-            blockers=None,
+            blocker_category="None",
+            blockers="None",
             confidence_mood=None,
             is_late=self.session.get("is_late", False)
         )
@@ -223,7 +234,8 @@ class EditFieldSelect(ui.Select):
             discord.SelectOption(label="Yesterday's work", value="question_yesterday"),
             discord.SelectOption(label="Today's work", value="question_today"),
             discord.SelectOption(label="Technical updates", value="question_technical"),
-            discord.SelectOption(label="Blockers", value="blockers"),
+            discord.SelectOption(label="Blocker Category", value="blocker_category"),
+            discord.SelectOption(label="Blocker Details", value="blockers"),
         ]
         
         super().__init__(
@@ -239,7 +251,8 @@ class EditFieldSelect(ui.Select):
             "question_yesterday": "yesterday's work",
             "question_today": "today's work",
             "question_technical": "technical updates",
-            "blockers": "blockers"
+            "blocker_category": "blocker category",
+            "blockers": "blocker details"
         }
         
         current_value = self.response.get(field) or "None"
@@ -339,6 +352,7 @@ class CollectionCog(commands.Cog):
                 "question_yesterday": partial["question_yesterday"] if partial else None,
                 "question_today": partial["question_today"] if partial else None,
                 "question_technical": partial["question_technical"] if partial else None,
+                "blocker_category": partial["blocker_category"] if partial else None,
                 "blockers": partial["blockers"] if partial else None,
             } if partial else {},
             "channel": dm_channel,
@@ -353,7 +367,7 @@ class CollectionCog(commands.Cog):
         if partial:
             intro = (
                 "👋 **Welcome back!** Let's continue your standup.\n\n"
-                f"📊 Progress: {partial['current_step']}/5 questions answered\n\n"
+                f"📊 Progress: {partial['current_step']}/6 questions answered\n\n"
             )
         else:
             intro = (
@@ -362,7 +376,7 @@ class CollectionCog(commands.Cog):
                 "• Answer at your own pace (progress is saved)\n"
                 "• Use `/edit_standup` later to modify answers\n"
                 "• Click 'No update today' to skip\n\n"
-                "📊 Progress: 0/5 questions answered\n\n"
+                "📊 Progress: 0/6 questions answered\n\n"
             )
         
         if reminder:
@@ -381,10 +395,15 @@ class CollectionCog(commands.Cog):
             await dm_channel.send(intro + QUESTIONS[2][1])
         elif session["step"] == 3:
             await dm_channel.send(
-                intro + "🚧 **Any blockers?**",
+                intro + "🚧 **Select the category of your blocker:**",
                 view=BlockerView(session)
             )
         elif session["step"] == 4:
+            await dm_channel.send(
+                intro + f"🚧 **You selected '{session['responses'].get('blocker_category')}' blocker.**\n"
+                "Please type the specific details of your blocker:"
+            )
+        elif session["step"] == 5:
             await dm_channel.send(
                 intro + "🎭 **How are you feeling today?** (Optional)",
                 view=MoodView(session)
@@ -446,29 +465,8 @@ class CollectionCog(commands.Cog):
         
         step = session["step"]
         
-        # Handle custom blocker input
-        if session.get("awaiting_custom_blocker"):
-            blocker = message.content if message.content.lower() not in ["none", "no", "n/a"] else None
-            session["responses"]["blockers"] = blocker
-            session["awaiting_custom_blocker"] = False
-            session["step"] = 4
-            
-            # Save partial
-            database.save_partial_response(
-                user_id=session["user_id"],
-                username=session["username"],
-                step=4,
-                blockers=blocker
-            )
-            
-            # Show mood selection
-            await message.channel.send(
-                "📊 Progress: 4/5 questions answered\n\n"
-                "🎭 **How are you feeling today?** (Optional)\n\n"
-                "Rate your confidence/mood (1-5):",
-                view=MoodView(session)
-            )
-            return
+        # No longer using session.get("awaiting_custom_blocker") 
+        # as the flow is now deterministic based on step 4
         
         # Store response based on current step
         if step == 0:
@@ -484,7 +482,7 @@ class CollectionCog(commands.Cog):
             )
             
             await message.channel.send(
-                "📊 Progress: 1/5 questions answered\n\n" + QUESTIONS[1][1]
+                "📊 Progress: 1/6 questions answered\n\n" + QUESTIONS[1][1]
             )
             
         elif step == 1:
@@ -500,7 +498,7 @@ class CollectionCog(commands.Cog):
             )
             
             await message.channel.send(
-                "📊 Progress: 2/5 questions answered\n\n" + QUESTIONS[2][1]
+                "📊 Progress: 2/6 questions answered\n\n" + QUESTIONS[2][1]
             )
         elif step == 2:
             session["responses"]["question_technical"] = message.content
@@ -515,10 +513,30 @@ class CollectionCog(commands.Cog):
             )
             
             await message.channel.send(
-                "📊 Progress: 3/5 questions answered\n\n"
-                "🚧 **Any blockers or issues?**\n\n"
-                "Select from common options or choose 'Other' to type your own:",
+                "📊 Progress: 3/6 questions answered\n\n"
+                "🚧 **Select the category of your blocker:**",
                 view=BlockerView(session)
+            )
+        elif step == 3:
+            # Step 3 handled by BlockerView callback
+            pass
+        elif step == 4:
+            session["responses"]["blockers"] = message.content
+            session["step"] = 5
+            
+            # Save partial
+            database.save_partial_response(
+                user_id=session["user_id"],
+                username=session["username"],
+                step=5,
+                blockers=message.content
+            )
+            
+            await message.channel.send(
+                "📊 Progress: 5/6 questions answered\n\n"
+                "🎭 **How are you feeling today?** (Optional)\n\n"
+                "Rate your confidence/mood (1-5):",
+                view=MoodView(session)
             )
     
     @app_commands.command(name="edit_standup", description="Edit your standup response for today")
@@ -557,7 +575,8 @@ class CollectionCog(commands.Cog):
             f"**Yesterday:** {response['question_yesterday'] or 'None'}",
             f"**Today:** {response['question_today'] or 'None'}",
             f"**Technical:** {response['question_technical'] or 'None'}",
-            f"**Blockers:** {response['blockers'] or 'None'}",
+            f"**Blocker Category:** {response['blocker_category'] or 'None'}",
+            f"**Blocker Details:** {response['blockers'] or 'None'}",
             f"**Mood:** {response['confidence_mood'] or 'Not set'}/5" if response['confidence_mood'] else "",
             "\nSelect a field to edit:"
         ]

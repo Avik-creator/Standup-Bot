@@ -100,6 +100,7 @@ def init_db() -> None:
     add_column("responses", "question_yesterday", "TEXT")
     add_column("responses", "question_today", "TEXT")
     add_column("responses", "question_technical", "TEXT")
+    add_column("responses", "blocker_category", "TEXT")
     add_column("responses", "blockers", "TEXT")
     add_column("responses", "confidence_mood", "INTEGER")
     add_column("responses", "submitted_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
@@ -118,6 +119,7 @@ def init_db() -> None:
     add_column("partial_responses", "question_yesterday", "TEXT")
     add_column("partial_responses", "question_today", "TEXT")
     add_column("partial_responses", "question_technical", "TEXT")
+    add_column("partial_responses", "blocker_category", "TEXT")
     add_column("partial_responses", "blockers", "TEXT")
     add_column("partial_responses", "confidence_mood", "INTEGER")
 
@@ -292,6 +294,7 @@ def save_response(
     question_yesterday: str,
     question_today: str,
     question_technical: Optional[str] = None,
+    blocker_category: Optional[str] = None,
     blockers: Optional[str] = None,
     confidence_mood: Optional[int] = None,
     is_late: bool = False
@@ -313,22 +316,22 @@ def save_response(
         conn.execute("""
             UPDATE responses 
             SET question_yesterday = ?, question_today = ?, question_technical = ?,
-                blockers = ?, confidence_mood = ?, edited_at = CURRENT_TIMESTAMP,
-                done_today = ?, next_tasks = ?
+                blocker_category = ?, blockers = ?, confidence_mood = ?, 
+                edited_at = CURRENT_TIMESTAMP, done_today = ?, next_tasks = ?
             WHERE user_id = ? AND standup_date = ?
-        """, (question_yesterday, question_today, question_technical, blockers, 
-              confidence_mood, question_yesterday, question_today, user_id, standup_date))
+        """, (question_yesterday, question_today, question_technical, blocker_category, 
+              blockers, confidence_mood, question_yesterday, question_today, user_id, standup_date))
     else:
         # Insert new
         conn.execute("""
             INSERT INTO responses (user_id, username, question_yesterday, question_today, 
-                                   question_technical, blockers, confidence_mood, 
-                                   standup_date, is_late, response_date, submitted_at,
-                                   done_today, next_tasks)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+                                   question_technical, blocker_category, blockers, 
+                                   confidence_mood, standup_date, is_late, response_date, 
+                                   submitted_at, done_today, next_tasks)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
         """, (user_id, username, question_yesterday, question_today, question_technical, 
-              blockers, confidence_mood, standup_date, 1 if is_late else 0, 
-              date.today().isoformat(), question_yesterday, question_today))
+              blocker_category, blockers, confidence_mood, standup_date, 
+              1 if is_late else 0, date.today().isoformat(), question_yesterday, question_today))
     
     conn.commit()
     
@@ -371,7 +374,7 @@ def get_user_response(user_id: str, standup_date: Optional[str] = None) -> Optio
     cursor = conn.execute("""
         SELECT user_id, username, question_yesterday, question_today, blockers,
                confidence_mood, standup_date, submitted_at, edited_at, is_late,
-               question_technical
+               question_technical, blocker_category
         FROM responses WHERE user_id = ? AND standup_date = ?
     """, (user_id, standup_date))
     
@@ -390,7 +393,8 @@ def get_user_response(user_id: str, standup_date: Optional[str] = None) -> Optio
         "submitted_at": row[7],
         "edited_at": row[8],
         "is_late": bool(row[9]),
-        "question_technical": row[10] if len(row) > 10 else None
+        "question_technical": row[10] if len(row) > 10 else None,
+        "blocker_category": row[11] if len(row) > 11 else None
     }
 
 
@@ -404,7 +408,8 @@ def get_responses_for_date(target_date: Optional[str] = None) -> List[Dict[str, 
     
     cursor = conn.execute("""
         SELECT user_id, username, question_yesterday, question_today, blockers, 
-               confidence_mood, submitted_at, edited_at, is_late, question_technical
+               confidence_mood, submitted_at, edited_at, is_late, question_technical,
+               blocker_category
         FROM responses
         WHERE standup_date = ?
         ORDER BY submitted_at ASC
@@ -423,7 +428,8 @@ def get_responses_for_date(target_date: Optional[str] = None) -> List[Dict[str, 
             "submitted_at": row[6],
             "edited_at": row[7],
             "is_late": bool(row[8]),
-            "question_technical": row[9]
+            "question_technical": row[9],
+            "blocker_category": row[10] if len(row) > 10 else None
         })
     
     return responses
@@ -497,6 +503,7 @@ def save_partial_response(
     question_yesterday: Optional[str] = None,
     question_today: Optional[str] = None,
     question_technical: Optional[str] = None,
+    blocker_category: Optional[str] = None,
     blockers: Optional[str] = None,
     confidence_mood: Optional[int] = None
 ) -> None:
@@ -518,20 +525,21 @@ def save_partial_response(
             SET question_yesterday = COALESCE(?, question_yesterday),
                 question_today = COALESCE(?, question_today),
                 question_technical = COALESCE(?, question_technical),
+                blocker_category = COALESCE(?, blocker_category),
                 blockers = COALESCE(?, blockers),
                 confidence_mood = COALESCE(?, confidence_mood),
                 current_step = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE user_id = ?
-        """, (question_yesterday, question_today, question_technical, blockers, confidence_mood, step, user_id))
+        """, (question_yesterday, question_today, question_technical, blocker_category, blockers, confidence_mood, step, user_id))
     else:
         conn.execute("""
             INSERT INTO partial_responses 
             (user_id, username, question_yesterday, question_today, question_technical,
-             blockers, confidence_mood, standup_date, current_step)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             blocker_category, blockers, confidence_mood, standup_date, current_step)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (user_id, username, question_yesterday, question_today, question_technical,
-              blockers, confidence_mood, standup_date, step))
+              blocker_category, blockers, confidence_mood, standup_date, step))
     
     conn.commit()
 
@@ -543,7 +551,7 @@ def get_partial_response(user_id: str) -> Optional[Dict[str, Any]]:
     standup_date = get_standup_date(settings["timezone"])
     
     cursor = conn.execute("""
-        SELECT question_yesterday, question_today, question_technical, blockers, confidence_mood, current_step
+        SELECT question_yesterday, question_today, question_technical, blocker_category, blockers, confidence_mood, current_step
         FROM partial_responses 
         WHERE user_id = ? AND standup_date = ?
     """, (user_id, standup_date))
@@ -556,9 +564,10 @@ def get_partial_response(user_id: str) -> Optional[Dict[str, Any]]:
         "question_yesterday": row[0],
         "question_today": row[1],
         "question_technical": row[2],
-        "blockers": row[3],
-        "confidence_mood": row[4],
-        "current_step": row[5]
+        "blocker_category": row[3],
+        "blockers": row[4],
+        "confidence_mood": row[5],
+        "current_step": row[6]
     }
 
 

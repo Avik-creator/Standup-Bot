@@ -40,10 +40,14 @@ def generate_summary(
 - Yesterday: {r.get('question_yesterday', 'N/A')}
 - Today: {r.get('question_today', 'N/A')}
 - Technical: {r.get('question_technical', 'None')}
-- Blockers: {r.get('blockers') or 'None'}
+- Blocker [{r.get('blocker_category') or 'None'}]: {r.get('blockers') or 'None'}
 """
         if r.get('blockers') and r['blockers'].lower() not in ['none', 'no', 'n/a']:
-            blocked_users.append({"username": r['username'], "blocker": r['blockers']})
+            blocked_users.append({
+                "username": r['username'], 
+                "category": r.get('blocker_category') or 'Other',
+                "blocker": r['blockers']
+            })
     
     # Build non-responders text
     non_responders_text = ""
@@ -55,7 +59,7 @@ def generate_summary(
     if blocked_users:
         blockers_text = "\n\n**BLOCKED USERS (REQUIRES ATTENTION):**\n"
         for u in blocked_users:
-            blockers_text += f"- {u['username']}: {u['blocker']}\n"
+            blockers_text += f"- {u['username']} [{u['category']}]: {u['blocker']}\n"
     
     prompt = f"""You are a helpful assistant that summarizes daily standup responses for a software team.
 
@@ -87,13 +91,14 @@ Identify any risks based on the responses:
 - Patterns suggesting potential delays
 
 ## ❌ Missing Responses
-List users who did NOT submit a standup. This is critical visibility.
-{f"Missing: {', '.join([u['username'] for u in non_responders])}" if non_responders else "✅ All registered users responded"}
+{non_responders_text if non_responders else "✅ All registered users responded"}
 
 RULES:
+- **CRITICAL:** ONLY list people in the "Missing Responses" section if they are explicitly provided in the "Non-Responders" list above. 
+- DO NOT assume someone is missing just because they are mentioned in someone else's response (e.g., if someone says "Discussed with Purna", DO NOT list Purna as missing unless he is in the provided list).
 - DO NOT write generic summaries like "the team worked on various tasks"
 - BE SPECIFIC with names and tasks
-- HIGHLIGHT blockers prominently - this is the most important part
+- HIGHLIGHT blockers prominently, including their CATEGORY (Technical, Process, Dependency, etc.).
 - Group by theme/feature when multiple people work on related things
 - Keep it concise but complete
 - Use Discord markdown formatting (** for bold, - for bullets)
