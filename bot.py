@@ -50,14 +50,14 @@ async def on_ready():
         guild = discord.Object(id=int(GUILD_ID))
         bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
-        print(f"✅ Synced {len(synced)} slash commands to guild")
+        print(f"synced {len(synced)} slash commands to guild")
     except Exception as e:
-        print(f"❌ Failed to sync commands: {e}")
+        print(f"Failed to sync commands: {e}")
     
     print(f"{'='*50}")
-    print(f"🤖 Bot is ready!")
-    print(f"📛 Logged in as: {bot.user.name} ({bot.user.id})")
-    print(f"🏠 Guild ID: {GUILD_ID}")
+    print(f"Bot is ready!")
+    print(f"Logged in as: {bot.user.name} ({bot.user.id})")
+    print(f"Guild ID: {GUILD_ID}")
     print(f"{'='*50}")
     
     # Set bot status
@@ -76,7 +76,7 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError):
         return  # Ignore unknown commands
     
     if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"❌ Missing argument: `{error.param.name}`")
+        await ctx.send(f"Missing argument: `{error.param.name}`")
         return
     
     # Log other errors
@@ -88,16 +88,16 @@ async def load_cogs():
     for cog in COGS:
         try:
             await bot.load_extension(cog)
-            print(f"✅ Loaded cog: {cog}")
+            print(f"Loaded cog: {cog}")
         except Exception as e:
-            print(f"❌ Failed to load cog {cog}: {e}")
+            print(f"Failed to load cog {cog}: {e}")
 
 
 async def main():
     """Main entry point."""
     # Initialize database
     database.init_db()
-    print("✅ Database initialized")
+    print("Database initialized")
     
     # Load cogs
     async with bot:
