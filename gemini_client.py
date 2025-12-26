@@ -39,6 +39,7 @@ def generate_summary(
 **{r['username']}**{late_str}{mood_str}
 - Yesterday: {r.get('question_yesterday', 'N/A')}
 - Today: {r.get('question_today', 'N/A')}
+- Technical: {r.get('question_technical', 'None')}
 - Blockers: {r.get('blockers') or 'None'}
 """
         if r.get('blockers') and r['blockers'].lower() not in ['none', 'no', 'n/a']:
@@ -68,6 +69,10 @@ Generate a STRUCTURED and ACTIONABLE summary following this EXACT format:
 
 ## 🎯 Today's Focus Areas
 Group work by theme or feature area. List who is working on what.
+
+## 🛠️ Technical Updates
+Summarize the specific technical, architectural, or code-level changes mentioned. Be detailed but concise.
+If NO technical updates, skip this section.
 
 ## ⚠️ Blockers (Immediate Attention Required)
 List ALL blockers with the person's name and what they're blocked on.

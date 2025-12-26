@@ -14,6 +14,7 @@ import database
 QUESTIONS = [
     ("question_yesterday", "📋 **What did you work on yesterday?**\n(Describe completed tasks)"),
     ("question_today", "🎯 **What are you working on today?**\n(Describe your plans)"),
+    ("question_technical", "🛠️ **Any technical updates?**\n(Specific architectural or code changes)"),
     ("blockers", None),  # Special handling with dropdown
     ("confidence_mood", None),  # Special handling with buttons
 ]
@@ -44,6 +45,7 @@ class MoodButton(ui.Button):
             username=interaction.user.name,
             question_yesterday=self.session["responses"]["question_yesterday"],
             question_today=self.session["responses"]["question_today"],
+            question_technical=self.session["responses"].get("question_technical"),
             blockers=self.session["responses"].get("blockers"),
             confidence_mood=self.value,
             is_late=self.session.get("is_late", False)
@@ -89,6 +91,7 @@ class MoodView(ui.View):
             username=interaction.user.name,
             question_yesterday=self.session["responses"]["question_yesterday"],
             question_today=self.session["responses"]["question_today"],
+            question_technical=self.session["responses"].get("question_technical"),
             blockers=self.session["responses"].get("blockers"),
             confidence_mood=None,
             is_late=self.session.get("is_late", False)
@@ -143,7 +146,7 @@ class BlockerSelect(ui.Select):
         if selected == "__OTHER__":
             await interaction.response.edit_message(
                 content=(
-                    f"📊 Progress: 2/4 questions answered\n\n"
+                    f"📊 Progress: 3/5 questions answered\n\n"
                     "🚧 **Any blockers?**\n\n"
                     "Please type your blocker below:"
                 ),
@@ -153,20 +156,20 @@ class BlockerSelect(ui.Select):
         else:
             blocker = None if selected == "__NONE__" else selected
             self.session["responses"]["blockers"] = blocker
-            self.session["step"] = 3
+            self.session["step"] = 4
             
             # Save partial
             database.save_partial_response(
                 user_id=self.session["user_id"],
                 username=self.session["username"],
-                step=3,
+                step=4,
                 blockers=blocker
             )
             
             # Show mood selection
             await interaction.response.edit_message(
                 content=(
-                    f"📊 Progress: 3/4 questions answered\n\n"
+                    f"📊 Progress: 4/5 questions answered\n\n"
                     "🎭 **How are you feeling today?** (Optional)\n\n"
                     "Rate your confidence/mood (1-5):"
                 ),
@@ -197,6 +200,7 @@ class NoUpdateView(ui.View):
             username=interaction.user.name,
             question_yesterday="No update",
             question_today="No update",
+            question_technical="None",
             blockers=None,
             confidence_mood=None,
             is_late=self.session.get("is_late", False)
@@ -218,6 +222,7 @@ class EditFieldSelect(ui.Select):
         options = [
             discord.SelectOption(label="Yesterday's work", value="question_yesterday"),
             discord.SelectOption(label="Today's work", value="question_today"),
+            discord.SelectOption(label="Technical updates", value="question_technical"),
             discord.SelectOption(label="Blockers", value="blockers"),
         ]
         
@@ -233,6 +238,7 @@ class EditFieldSelect(ui.Select):
         field_labels = {
             "question_yesterday": "yesterday's work",
             "question_today": "today's work",
+            "question_technical": "technical updates",
             "blockers": "blockers"
         }
         
@@ -332,6 +338,7 @@ class CollectionCog(commands.Cog):
             "responses": {
                 "question_yesterday": partial["question_yesterday"] if partial else None,
                 "question_today": partial["question_today"] if partial else None,
+                "question_technical": partial["question_technical"] if partial else None,
                 "blockers": partial["blockers"] if partial else None,
             } if partial else {},
             "channel": dm_channel,
@@ -346,7 +353,7 @@ class CollectionCog(commands.Cog):
         if partial:
             intro = (
                 "👋 **Welcome back!** Let's continue your standup.\n\n"
-                f"📊 Progress: {partial['current_step']}/4 questions answered\n\n"
+                f"📊 Progress: {partial['current_step']}/5 questions answered\n\n"
             )
         else:
             intro = (
@@ -355,7 +362,7 @@ class CollectionCog(commands.Cog):
                 "• Answer at your own pace (progress is saved)\n"
                 "• Use `/edit_standup` later to modify answers\n"
                 "• Click 'No update today' to skip\n\n"
-                "📊 Progress: 0/4 questions answered\n\n"
+                "📊 Progress: 0/5 questions answered\n\n"
             )
         
         if reminder:
@@ -371,11 +378,13 @@ class CollectionCog(commands.Cog):
         elif session["step"] == 1:
             await dm_channel.send(intro + QUESTIONS[1][1])
         elif session["step"] == 2:
+            await dm_channel.send(intro + QUESTIONS[2][1])
+        elif session["step"] == 3:
             await dm_channel.send(
                 intro + "🚧 **Any blockers?**",
                 view=BlockerView(session)
             )
-        elif session["step"] == 3:
+        elif session["step"] == 4:
             await dm_channel.send(
                 intro + "🎭 **How are you feeling today?** (Optional)",
                 view=MoodView(session)
@@ -442,19 +451,19 @@ class CollectionCog(commands.Cog):
             blocker = message.content if message.content.lower() not in ["none", "no", "n/a"] else None
             session["responses"]["blockers"] = blocker
             session["awaiting_custom_blocker"] = False
-            session["step"] = 3
+            session["step"] = 4
             
             # Save partial
             database.save_partial_response(
                 user_id=session["user_id"],
                 username=session["username"],
-                step=3,
+                step=4,
                 blockers=blocker
             )
             
             # Show mood selection
             await message.channel.send(
-                "📊 Progress: 3/4 questions answered\n\n"
+                "📊 Progress: 4/5 questions answered\n\n"
                 "🎭 **How are you feeling today?** (Optional)\n\n"
                 "Rate your confidence/mood (1-5):",
                 view=MoodView(session)
@@ -475,7 +484,7 @@ class CollectionCog(commands.Cog):
             )
             
             await message.channel.send(
-                "📊 Progress: 1/4 questions answered\n\n" + QUESTIONS[1][1]
+                "📊 Progress: 1/5 questions answered\n\n" + QUESTIONS[1][1]
             )
             
         elif step == 1:
@@ -491,7 +500,22 @@ class CollectionCog(commands.Cog):
             )
             
             await message.channel.send(
-                "📊 Progress: 2/4 questions answered\n\n"
+                "📊 Progress: 2/5 questions answered\n\n" + QUESTIONS[2][1]
+            )
+        elif step == 2:
+            session["responses"]["question_technical"] = message.content
+            session["step"] = 3
+            
+            # Save partial
+            database.save_partial_response(
+                user_id=session["user_id"],
+                username=session["username"],
+                step=3,
+                question_technical=message.content
+            )
+            
+            await message.channel.send(
+                "📊 Progress: 3/5 questions answered\n\n"
                 "🚧 **Any blockers or issues?**\n\n"
                 "Select from common options or choose 'Other' to type your own:",
                 view=BlockerView(session)
@@ -532,6 +556,7 @@ class CollectionCog(commands.Cog):
             "📝 **Your Current Standup Response**\n",
             f"**Yesterday:** {response['question_yesterday'] or 'None'}",
             f"**Today:** {response['question_today'] or 'None'}",
+            f"**Technical:** {response['question_technical'] or 'None'}",
             f"**Blockers:** {response['blockers'] or 'None'}",
             f"**Mood:** {response['confidence_mood'] or 'Not set'}/5" if response['confidence_mood'] else "",
             "\nSelect a field to edit:"
