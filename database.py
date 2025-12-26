@@ -36,7 +36,8 @@ def init_db() -> None:
             user_id TEXT PRIMARY KEY,
             username TEXT NOT NULL,
             registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active INTEGER DEFAULT 1
+            is_active INTEGER DEFAULT 1,
+            timezone TEXT DEFAULT 'UTC'
         )
     """)
     
@@ -157,14 +158,49 @@ def get_registered_users() -> List[Dict[str, Any]]:
     conn = get_connection()
     
     cursor = conn.execute(
-        "SELECT user_id, username, registered_at FROM registered_users WHERE is_active = 1"
+        "SELECT user_id, username, registered_at, timezone FROM registered_users WHERE is_active = 1"
     )
     
     rows = cursor.fetchall()
     return [
-        {"user_id": row[0], "username": row[1], "registered_at": row[2]}
+        {"user_id": row[0], "username": row[1], "registered_at": row[2], "timezone": row[3] or "UTC"}
         for row in rows
     ]
+
+
+def set_user_timezone(user_id: str, timezone: str) -> bool:
+    """Set the timezone for a specific user."""
+    conn = get_connection()
+    
+    # Verify timezone is valid
+    try:
+        pytz.timezone(timezone)
+    except pytz.UnknownTimeZoneError:
+        return False
+        
+    conn.execute(
+        "UPDATE registered_users SET timezone = ? WHERE user_id = ?",
+        (timezone, user_id)
+    )
+    conn.commit()
+    return True
+
+
+def get_user_timezone(user_id: str) -> str:
+    """Get the timezone for a specific user, falling back to global setting."""
+    conn = get_connection()
+    
+    cursor = conn.execute(
+        "SELECT timezone FROM registered_users WHERE user_id = ?",
+        (user_id,)
+    )
+    row = cursor.fetchone()
+    
+    if row and row[0]:
+        return row[0]
+    
+    # Fallback to global setting
+    return get_settings()["timezone"]
 
 
 def is_user_registered(user_id: str) -> bool:

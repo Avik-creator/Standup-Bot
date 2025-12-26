@@ -14,6 +14,7 @@ A production-ready Discord bot for collecting daily standups from team members, 
 - **Progress Saving**: Answers saved as you go, resume if interrupted
 - **Edit Responses**: Modify answers within the collection window
 - **No Update Option**: Quickly mark "no update" for a day
+- **Individual Timezone**: Users can set their own timezone with `/set_my_timezone`
 
 ### For Admins
 - **Configurable Schedule**: Set collection times and timezone
@@ -32,6 +33,7 @@ A production-ready Discord bot for collecting daily standups from team members, 
 | `/my_status` | Check your registration and response status |
 | `/no_update` | Mark no update for today |
 | `/edit_standup` | Edit your response within the window |
+| `/set_my_timezone` | Set your local timezone |
 
 ### Admin Commands
 | Command | Description |

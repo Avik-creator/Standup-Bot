@@ -6,6 +6,58 @@ from typing import Optional
 import database
 
 
+# Common timezone options
+TIMEZONE_OPTIONS = [
+    ("UTC", "UTC"),
+    ("US/Eastern", "US/Eastern"),
+    ("US/Pacific", "US/Pacific"),
+    ("Europe/London", "Europe/London"),
+    ("Europe/Paris", "Europe/Paris"),
+    ("Asia/Kolkata", "Asia/Kolkata"),
+    ("Asia/Tokyo", "Asia/Tokyo"),
+    ("Asia/Singapore", "Asia/Singapore"),
+    ("Australia/Sydney", "Australia/Sydney"),
+]
+
+
+class UserTimezoneSelect(ui.Select):
+    """Dropdown for individual user timezone selection."""
+    
+    def __init__(self):
+        options = [
+            discord.SelectOption(label=tz, value=tz) for label, tz in TIMEZONE_OPTIONS
+        ]
+        super().__init__(
+            placeholder="Select your local timezone...",
+            options=options,
+            min_values=1,
+            max_values=1
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        timezone = self.values[0]
+        user_id = str(interaction.user.id)
+        
+        if database.set_user_timezone(user_id, timezone):
+            await interaction.response.edit_message(
+                content=f"✅ **Your timezone has been updated to `{timezone}`**\n\nYour standup date and status will now be calculated using this timezone.",
+                view=None
+            )
+        else:
+            await interaction.response.edit_message(
+                content="❌ Failed to update timezone. Please try again.",
+                view=None
+            )
+
+
+class UserTimezoneView(ui.View):
+    """View containing user timezone dropdown."""
+    
+    def __init__(self):
+        super().__init__(timeout=60)
+        self.add_item(UserTimezoneSelect())
+
+
 class RegisterView(ui.View):
     """Confirmation view for registration."""
     
@@ -138,6 +190,9 @@ class RegistrationCog(commands.Cog):
             "✅ **Registered** for daily standups\n"
         ]
         
+        user_tz = database.get_user_timezone(user_id)
+        status_lines.append(f"🌍 **Your Timezone:** `{user_tz}`")
+        
         if response:
             status_lines.append(f"✅ **Responded** for {response['standup_date']}")
             if response['edited_at']:
@@ -145,12 +200,12 @@ class RegistrationCog(commands.Cog):
             if response['is_late']:
                 status_lines.append("   ⚠️ _Late submission_")
         else:
-            standup_date = database.get_standup_date(settings["timezone"])
+            standup_date = database.get_standup_date(user_tz)
             status_lines.append(f"❌ **Not yet responded** for {standup_date}")
             if database.is_within_collection_window():
                 status_lines.append("   📝 _Collection window is open!_")
         
-        status_lines.append(f"\n⏰ Collection: `{settings['start_time']}` - `{settings['end_time']}` ({settings['timezone']})")
+        status_lines.append(f"\n⏰ Global Collection: `{settings['start_time']}` - `{settings['end_time']}` ({settings['timezone']})")
         
         await interaction.response.send_message(
             "\n".join(status_lines),
@@ -224,6 +279,22 @@ class RegistrationCog(commands.Cog):
         
         await interaction.response.send_message(
             "\n".join(lines),
+            ephemeral=True
+        )
+
+    @app_commands.command(name="set_my_timezone", description="Set your local timezone")
+    async def set_my_timezone(self, interaction: discord.Interaction):
+        """Set user's individual timezone."""
+        if not database.is_user_registered(str(interaction.user.id)):
+            await interaction.response.send_message(
+                "❌ You need to register first with `/register`.",
+                ephemeral=True
+            )
+            return
+            
+        await interaction.response.send_message(
+            "🌍 **Set Your local Timezone**\n\nSelect your local timezone from the dropdown:",
+            view=UserTimezoneView(),
             ephemeral=True
         )
 
