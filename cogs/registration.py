@@ -2,6 +2,9 @@ import discord
 from discord.ext import commands
 from discord import app_commands, ui
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 import database
 
@@ -272,7 +275,8 @@ class RegistrationCog(commands.Cog):
             try:
                 discord_user = await self.bot.fetch_user(int(user["user_id"]))
                 name = f"{discord_user.mention} ({user['username']})"
-            except:
+            except Exception as e:
+                logger.warning(f"Failed to fetch user {user['user_id']}: {e}")
                 name = f"@{user['username']} (ID: {user['user_id']})"
             
             lines.append(f"{i}. {name}")

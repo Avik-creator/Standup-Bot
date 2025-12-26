@@ -3,6 +3,9 @@ from discord.ext import commands
 from discord import app_commands, ui
 from typing import Optional
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 import database
 
@@ -312,7 +315,7 @@ class CollectionCog(commands.Cog):
         try:
             dm_channel = await member.create_dm()
         except discord.Forbidden:
-            print(f"[Collection] Cannot DM {member.name} - DMs disabled")
+            logger.warning(f"Cannot DM {member.name} - DMs disabled")
             return False
         
         settings = database.get_settings()
@@ -392,7 +395,7 @@ class CollectionCog(commands.Cog):
                     count += 1
                     await asyncio.sleep(1)  # Rate limiting
             except Exception as e:
-                print(f"[Collection] Error sending to {user_data['username']}: {e}")
+                logger.error(f"Error sending to {user_data['username']}: {e}")
         
         return count
     
@@ -408,7 +411,7 @@ class CollectionCog(commands.Cog):
                     count += 1
                     await asyncio.sleep(1)
             except Exception as e:
-                print(f"[Reminder] Error sending to {user_data['username']}: {e}")
+                logger.error(f"Error sending reminder to {user_data['username']}: {e}")
         
         return count
     

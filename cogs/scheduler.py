@@ -3,6 +3,9 @@ from discord.ext import commands, tasks
 from datetime import datetime
 import os
 import pytz
+import logging
+
+logger = logging.getLogger(__name__)
 
 import database
 import gemini_client
@@ -70,27 +73,27 @@ class SchedulerCog(commands.Cog):
     async def _run_collection(self):
         """Run the standup collection for registered users."""
         if self.guild_id == 0:
-            print("[Scheduler] No GUILD_ID configured, skipping collection")
+            logger.warning("No GUILD_ID configured, skipping collection")
             return
         
         guild = self.bot.get_guild(self.guild_id)
         if not guild:
-            print(f"[Scheduler] Guild {self.guild_id} not found")
+            logger.error(f"Guild {self.guild_id} not found")
             return
         
         collection_cog = self.bot.get_cog("CollectionCog")
         if not collection_cog:
-            print("[Scheduler] CollectionCog not loaded")
+            logger.error("CollectionCog not loaded")
             return
         
         registered_count = database.get_registered_user_count()
         if registered_count == 0:
-            print("[Scheduler] No registered users, skipping collection")
+            logger.info("No registered users, skipping collection")
             return
         
-        print(f"[Scheduler] Starting scheduled collection for {guild.name} ({registered_count} registered users)")
+        logger.info(f"Starting scheduled collection for {guild.name} ({registered_count} registered users)")
         count = await collection_cog.collect_from_registered_users(guild)
-        print(f"[Scheduler] Sent DMs to {count} members")
+        logger.info(f"Sent DMs to {count} members")
     
     async def _run_reminder(self):
         """Send reminders to non-responders."""
@@ -107,12 +110,12 @@ class SchedulerCog(commands.Cog):
         
         non_responders = database.get_non_responders()
         if not non_responders:
-            print("[Scheduler] All users have responded, no reminders needed")
+            logger.info("All users have responded, no reminders needed")
             return
         
-        print(f"[Scheduler] Sending reminders to {len(non_responders)} non-responders")
+        logger.info(f"Sending reminders to {len(non_responders)} non-responders")
         count = await collection_cog.send_reminders(guild)
-        print(f"[Scheduler] Sent reminders to {count} members")
+        logger.info(f"Sent reminders to {count} members")
     
     async def _run_summary(self):
         """Generate and post the daily summary."""
@@ -152,13 +155,13 @@ class SchedulerCog(commands.Cog):
         
         if channel:
             await channel.send(summary)
-            print(f"[Scheduler] Posted summary to #{channel.name}")
+            logger.info(f"Posted summary to #{channel.name}")
         else:
-            print("[Scheduler] No channel available for summary")
+            logger.error("No channel available for summary")
     
     async def reschedule_jobs(self):
         """Called when admin updates time settings."""
-        print("[Scheduler] Settings updated, new times will take effect next minute")
+        logger.info("Settings updated, new times will take effect next minute")
 
 
 async def setup(bot: commands.Bot):

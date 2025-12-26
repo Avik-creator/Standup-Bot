@@ -1,9 +1,20 @@
 import os
 import asyncio
 import discord
+import logging
 from discord.ext import commands
 from dotenv import load_dotenv
 
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 import database
 
 # Load environment variables
@@ -50,15 +61,15 @@ async def on_ready():
         guild = discord.Object(id=int(GUILD_ID))
         bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
-        print(f"synced {len(synced)} slash commands to guild")
+        logger.info(f"synced {len(synced)} slash commands to guild")
     except Exception as e:
-        print(f"Failed to sync commands: {e}")
+        logger.error(f"Failed to sync commands: {e}")
     
-    print(f"{'='*50}")
-    print(f"Bot is ready!")
-    print(f"Logged in as: {bot.user.name} ({bot.user.id})")
-    print(f"Guild ID: {GUILD_ID}")
-    print(f"{'='*50}")
+    logger.info(f"{'='*50}")
+    logger.info(f"Bot is ready!")
+    logger.info(f"Logged in as: {bot.user.name} ({bot.user.id})")
+    logger.info(f"Guild ID: {GUILD_ID}")
+    logger.info(f"{'='*50}")
     
     # Set bot status
     await bot.change_presence(
@@ -80,7 +91,7 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError):
         return
     
     # Log other errors
-    print(f"[Error] {type(error).__name__}: {error}")
+    logger.error(f"[Error] {type(error).__name__}: {error}")
 
 
 async def load_cogs():
@@ -88,16 +99,16 @@ async def load_cogs():
     for cog in COGS:
         try:
             await bot.load_extension(cog)
-            print(f"Loaded cog: {cog}")
+            logger.info(f"Loaded cog: {cog}")
         except Exception as e:
-            print(f"Failed to load cog {cog}: {e}")
+            logger.error(f"Failed to load cog {cog}: {e}")
 
 
 async def main():
     """Main entry point."""
     # Initialize database
     database.init_db()
-    print("Database initialized")
+    logger.info("Database initialized")
     
     # Load cogs
     async with bot:

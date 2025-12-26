@@ -8,6 +8,9 @@ import pytz
 
 import database
 import gemini_client
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # Common timezone options

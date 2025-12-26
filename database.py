@@ -4,6 +4,9 @@ from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 import pytz
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -83,11 +86,11 @@ def init_db() -> None:
 
     def add_column(table, column, type_and_default):
         if not column_exists(table, column):
-            print(f"Migrating: Adding {column} to {table}")
+            logger.info(f"Migrating: Adding {column} to {table}")
             try:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_and_default}")
             except Exception as e:
-                print(f"Warning: Could not add {column} to {table}: {e}")
+                logger.warning(f"Warning: Could not add {column} to {table}: {e}")
 
     # Migrations for registered_users
     add_column("registered_users", "timezone", "TEXT DEFAULT 'UTC'")
@@ -121,7 +124,7 @@ def init_db() -> None:
     """)
     
     conn.commit()
-    print("Database schema initialized and migrated")
+    logger.info("Database schema initialized and migrated")
 
 
 # ============================================

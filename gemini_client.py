@@ -1,6 +1,8 @@
-import os
 from typing import List, Dict, Any, Optional
 from google import genai
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Initialize client (uses GEMINI_API_KEY environment variable)
 client = genai.Client()
