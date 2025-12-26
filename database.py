@@ -96,6 +96,7 @@ def init_db() -> None:
     add_column("registered_users", "timezone", "TEXT DEFAULT 'UTC'")
 
     # Migrations for responses
+    add_column("responses", "standup_date", "DATE")
     add_column("responses", "question_yesterday", "TEXT")
     add_column("responses", "question_today", "TEXT")
     add_column("responses", "blockers", "TEXT")
