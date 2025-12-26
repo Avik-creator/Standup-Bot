@@ -27,10 +27,10 @@ def get_connection():
 
 
 def init_db() -> None:
-    """Initialize database tables with full schema."""
+    """Initialize database tables with robust migration support."""
     conn = get_connection()
     
-    # Registered users table (opt-in system)
+    # 1. Registered users table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS registered_users (
             user_id TEXT PRIMARY KEY,
@@ -41,53 +41,31 @@ def init_db() -> None:
         )
     """)
     
-    # Responses table with full standup data
+    # 2. Responses table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS responses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
             username TEXT NOT NULL,
-            question_yesterday TEXT,
-            question_today TEXT,
-            blockers TEXT,
-            confidence_mood INTEGER,
             standup_date DATE NOT NULL,
-            submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            edited_at TIMESTAMP,
-            is_late INTEGER DEFAULT 0,
-            response_date DATE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     
-    # Settings table with timezone and summary channel
+    # 3. Settings table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             collection_start_time TEXT DEFAULT '09:00',
-            collection_end_time TEXT DEFAULT '17:00',
-            timezone TEXT DEFAULT 'UTC',
-            summary_channel_id TEXT,
-            reminder_enabled INTEGER DEFAULT 1,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            collection_end_time TEXT DEFAULT '17:00'
         )
     """)
     
-    # Insert default settings if not exists
-    conn.execute("""
-        INSERT OR IGNORE INTO settings (id, collection_start_time, collection_end_time, timezone)
-        VALUES (1, '09:00', '17:00', 'UTC')
-    """)
-    
-    # Partial responses table (for in-progress standups)
+    # 4. Partial responses table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS partial_responses (
             user_id TEXT PRIMARY KEY,
             username TEXT NOT NULL,
-            question_yesterday TEXT,
-            question_today TEXT,
-            blockers TEXT,
-            confidence_mood INTEGER,
             standup_date DATE NOT NULL,
             current_step INTEGER DEFAULT 0,
             started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -95,8 +73,55 @@ def init_db() -> None:
         )
     """)
     
+    # --- Robust Migrations ---
+    
+    # Helper to check if column exists
+    def column_exists(table, column):
+        cursor = conn.execute(f"PRAGMA table_info({table})")
+        columns = [row[1] for row in cursor.fetchall()]
+        return column in columns
+
+    def add_column(table, column, type_and_default):
+        if not column_exists(table, column):
+            print(f"🔧 Migrating: Adding {column} to {table}")
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_and_default}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not add {column} to {table}: {e}")
+
+    # Migrations for registered_users
+    add_column("registered_users", "timezone", "TEXT DEFAULT 'UTC'")
+
+    # Migrations for responses
+    add_column("responses", "question_yesterday", "TEXT")
+    add_column("responses", "question_today", "TEXT")
+    add_column("responses", "blockers", "TEXT")
+    add_column("responses", "confidence_mood", "INTEGER")
+    add_column("responses", "edited_at", "TIMESTAMP")
+    add_column("responses", "is_late", "INTEGER DEFAULT 0")
+    add_column("responses", "response_date", "DATE")
+    add_column("responses", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+
+    # Migrations for settings
+    add_column("settings", "timezone", "TEXT DEFAULT 'UTC'")
+    add_column("settings", "summary_channel_id", "TEXT")
+    add_column("settings", "reminder_enabled", "INTEGER DEFAULT 1")
+    add_column("settings", "updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+
+    # Migrations for partial_responses
+    add_column("partial_responses", "question_yesterday", "TEXT")
+    add_column("partial_responses", "question_today", "TEXT")
+    add_column("partial_responses", "blockers", "TEXT")
+    add_column("partial_responses", "confidence_mood", "INTEGER")
+
+    # Insert default settings if not exists
+    conn.execute("""
+        INSERT OR IGNORE INTO settings (id, collection_start_time, collection_end_time, timezone)
+        VALUES (1, '09:00', '17:00', 'UTC')
+    """)
+    
     conn.commit()
-    print("✅ Database schema initialized")
+    print("✅ Database schema initialized and migrated")
 
 
 # ============================================
