@@ -42,24 +42,9 @@ def generate_summary(
 - Technical: {r.get('question_technical', 'None')}
 - Blocker [{r.get('blocker_category') or 'None'}]: {r.get('blockers') or 'None'}
 """
-        if r.get('blockers') and r['blockers'].lower() not in ['none', 'no', 'n/a']:
-            blocked_users.append({
-                "username": r['username'], 
-                "category": r.get('blocker_category') or 'Other',
-                "blocker": r['blockers']
-            })
-    
     # 1. Raw Non-Responders for logic and input
     missing_list_str = "\n".join([f"- {u['username']}" for u in non_responders]) if non_responders else ""
     non_responders_input = "### NON-RESPONDERS:\n" + (missing_list_str if missing_list_str else "- None")
-    
-    # 2. Raw Blockers for input
-    blockers_input = "### BLOCKS:\n"
-    if blocked_users:
-        for u in blocked_users:
-            blockers_input += f"- {u['username']} [{u['category']}]: {u['blocker']}\n"
-    else:
-        blockers_input += "- None reported\n"
     
     prompt = f"""You are an experienced Engineering Manager preparing a DAILY STANDUP REPORT for leadership.
 This summary will be read by founders and tech leads — clarity and accountability matter.
@@ -69,7 +54,6 @@ CLEAR, STRUCTURED, ACTIONABLE report.
 
 INPUT:
 {responses_text}
-{blockers_input}
 {non_responders_input}
 
 ---
@@ -85,9 +69,8 @@ Do NOT use vague or motivational language.
 ## 🎯 Today's Focus Areas
 - Group work by FEATURE, MODULE, or INITIATIVE (not by person).
 - Under each group, list:
-  - Person name
-  - Exact task or outcome they are working on
-- If someone’s update is vague, rewrite it into a concrete task without inventing facts.
+  - **Name** -> Exact task or outcome they are working on
+- If someone’s update is vague, rephrase it into the MOST conservative concrete task that can be inferred WITHOUT adding new scope, tools, or outcomes.
 
 ## 🛠️ Technical Updates
 - Include ONLY concrete technical details:
@@ -98,10 +81,11 @@ Do NOT use vague or motivational language.
 ## ⚠️ Blockers (Immediate Attention Required)
 - List EVERY blocker explicitly.
 - Format each blocker as:
-  - **Name** — [{'{CATEGORY}'}]: blocker description
+  - **Name** — [Category]: blocker description
 - Highlight:
   - Dependencies on other team members
   - Dependencies on external teams or systems
+- Highlight blockers prominently, including their CATEGORY (Technical, Process, Dependency, External, etc.)
 - If NO blockers exist, write exactly:
   ✅ No blockers reported
 
@@ -110,6 +94,7 @@ Identify REAL risks based ONLY on the provided data:
 - Parallel work that may conflict or require coordination
 - Work blocked by unresolved dependencies
 - Patterns suggesting schedule or delivery risk
+- **Repeated or late responses (marked as LATE)** should be flagged as an execution risk if relevant.
 DO NOT speculate beyond the responses.
 
 ## ❌ Missing Responses
@@ -120,6 +105,7 @@ DO NOT speculate beyond the responses.
 STRICT RULES (NON-NEGOTIABLE):
 - ONLY list names in “Missing Responses” if they are explicitly provided above.
 - DO NOT assume someone is missing based on mentions in other updates.
+- DO NOT reference the input, responses, or standup explicitly (no self-referential or meta commentary).
 - DO NOT write generic phrases like:
   - “The team worked on various tasks”
   - “Progress is being made”
